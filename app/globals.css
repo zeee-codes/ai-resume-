@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --background: #FFFFFF;
+  --foreground: #1A1A1A;
+  
+  --font-outfit: var(--font-outfit);
+  --font-inter: var(--font-inter);
+
+  /* Brand Bold Colors (Tailwind v4 maps --color-* custom variables automatically) */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-hot-pink: #FF006E;
+  --color-electric-blue: #0096FF;
+  --color-lime-green: #39FF14;
+  --color-orange: #FF6B35;
+  --color-deep-purple: #6A00FF;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), Arial, sans-serif;
+  --font-heading: var(--font-outfit), Arial, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), sans-serif;
+}
+
+/* Custom Scrollbar styling for a high-end bold interface */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FAFAFA;
+  border-left: 2px solid #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #0096FF;
+  border: 2px solid #000000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF006E;
+}
+
+/* Neobrutalist Hard Shadow Utilities */
+.shadow-hard-black {
+  box-shadow: 4px 4px 0px 0px #000000;
+}
+
+.shadow-hard-pink {
+  box-shadow: 4px 4px 0px 0px #FF006E;
+}
+
+.shadow-hard-blue {
+  box-shadow: 4px 4px 0px 0px #0096FF;
+}
+
+.shadow-hard-lime {
+  box-shadow: 4px 4px 0px 0px #39FF14;
+}
+
+.shadow-hard-orange {
+  box-shadow: 4px 4px 0px 0px #FF6B35;
+}
+
+.shadow-hard-purple {
+  box-shadow: 4px 4px 0px 0px #6A00FF;
+}
+
+/* Soft-hard shadow for cards */
+.shadow-card {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.border-bold {
+  border: 2px solid #000000;
+}
+
+.border-bold-3 {
+  border: 3px solid #000000;
+}
