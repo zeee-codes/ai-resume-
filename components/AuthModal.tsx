@@ -18,9 +18,26 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const checkSupabaseConfig = (): boolean => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    
+    const isMockUrl = url.includes('your-project') || url === '';
+    const isMockKey = key.includes('your-anon-key') || key === '';
+    
+    if (isMockUrl || isMockKey) {
+      setError('Supabase Configuration Missing! Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file and RESTART your dev server (npm run dev) in the terminal.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    if (!checkSupabaseConfig()) return;
+    
     setLoading(true);
 
     try {
@@ -39,6 +56,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const handleGoogle = async () => {
     setError('');
+    if (!checkSupabaseConfig()) return;
+    
     try {
       await signInWithGoogle();
     } catch (err: any) {

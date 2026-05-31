@@ -6,15 +6,19 @@ import { motion } from 'framer-motion';
 import { 
   Plus, 
   Trash2, 
-  Share2, 
-  FileText, 
-  LayoutDashboard, 
   Eye, 
   Copy,
   Sparkles,
-  ArrowLeft
+  ArrowLeft,
+  LayoutDashboard,
+  CloudLightning,
+  CheckCircle,
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import { ResumeData } from '../../types';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthContext';
 
 interface SavedResume {
   id: string;
@@ -25,100 +29,160 @@ interface SavedResume {
 }
 
 export default function DashboardPage() {
+  const { user, signOut } = useAuth();
   const [resumes, setResumes] = useState<SavedResume[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Load resumes from localStorage or create mock ones
+  // Load resumes from Supabase or localStorage fallback
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    try {
-      const stored = localStorage.getItem('user_resumes');
-      if (stored) {
-        setResumes(JSON.parse(stored));
-      } else {
-        // Preload mock resumes to populate the interface immediately
-        const mockResumes: SavedResume[] = [
-          {
-            id: 'mock_1',
-            name: 'Zaid Al-Sayegh',
-            role: 'Senior Full Stack Engineer',
-            createdAt: 'May 31, 2026',
-            data: {
-              personalInfo: {
-                name: 'Zaid Al-Sayegh',
-                email: 'zaid@engineering.io',
-                phone: '555-019-2048'
-              },
-              summary: 'Metrics-driven Senior Full Stack Engineer with 6+ years of expertise designing and building high-throughput cloud infrastructure and reactive user interfaces. Focused on performance optimization and engineering excellence.',
-              skills: ['React/Next.js', 'TypeScript', 'Node.js', 'Go', 'AWS (Fargate/RDS)', 'PostgreSQL', 'Docker'],
-              projects: [
-                {
-                  name: 'Hyper-Scale SaaS Infrastructure',
-                  techStack: ['Next.js', 'Go', 'AWS', 'Docker'],
-                  bullets: [
-                    'Re-architected monolithic API endpoints into decoupled microservices, scaling user throughput by 250% while reducing latency from 180ms to 45ms.',
-                    'Engineered an automated serverless media transcoding pipeline serving 120k active assets, saving 35% in monthly compute overhead.',
-                    'Implemented strict database caching layers via Redis, reducing primary Postgres query loads by 65%.'
-                  ]
-                },
-                {
-                  name: 'Collaborative Real-time Canvas App',
-                  techStack: ['React', 'TypeScript', 'WebSockets', 'TailwindCSS'],
-                  bullets: [
-                    'Built a highly dynamic real-time collaborative workspace interface, driving 45k new user registrations within 60 days of deployment.',
-                    'Optimized canvas state synchronization protocols, achieving low-latency multi-client rendering in under 15ms.'
-                  ]
-                }
-              ]
-            }
-          },
-          {
-            id: 'mock_2',
-            name: 'Jane Doe',
-            role: 'Lead Product Designer',
-            createdAt: 'May 25, 2026',
-            data: {
-              personalInfo: {
-                name: 'Jane Doe',
-                email: 'jane@designworks.co',
-                phone: '555-012-3456'
-              },
-              summary: 'Lead Product Designer specialized in complex design systems and responsive user journeys. Committed to combining premium aesthetics with rigorous accessibility standards.',
-              skills: ['Figma', 'UI/UX Design', 'Design Systems', 'HTML/CSS', 'Prototyping', 'User Research'],
-              projects: [
-                {
-                  name: 'Global Enterprise Design System',
-                  techStack: ['Figma', 'Tokens Studio', 'React'],
-                  bullets: [
-                    'Spearheaded the unified UI design token library across 4 product verticals, cutting engineering handoff duration by 50%.',
-                    'Audited and overhauled components to achieve full WCAG 2.1 AA compliance across core transaction pages.'
-                  ]
-                }
-              ]
-            }
-          }
-        ];
-        localStorage.setItem('user_resumes', JSON.stringify(mockResumes));
-        setResumes(mockResumes);
-      }
-    } catch (e) {
-      console.error("Local storage access error", e);
-    }
-  }, []);
+    const loadResumes = async () => {
+      setLoading(true);
+      try {
+        // 1. Try to load from Supabase database if authenticated
+        if (user) {
+          const { data: cloudResumes, error } = await supabase
+            .from('resumes')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
 
-  const handleDelete = (id: string) => {
+          if (cloudResumes && !error && cloudResumes.length > 0) {
+            const mapped: SavedResume[] = cloudResumes.map((row: any) => ({
+              id: row.id,
+              name: row.resume_data.personalInfo?.name || row.title,
+              role: row.title,
+              createdAt: new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+              data: row.resume_data
+            }));
+            setResumes(mapped);
+            setIsCloudSynced(true);
+            // Sync to local cache
+            localStorage.setItem('user_resumes', JSON.stringify(mapped));
+            setLoading(false);
+            return;
+          }
+        }
+
+        // 2. Local fallback if offline/no cloud records
+        const stored = localStorage.getItem('user_resumes');
+        if (stored) {
+          setResumes(JSON.parse(stored));
+          setIsCloudSynced(false);
+        } else {
+          // Preload mock resumes to populate the interface immediately
+          const mockResumes: SavedResume[] = [
+            {
+              id: 'mock_1',
+              name: 'Zaid Al-Sayegh',
+              role: 'Senior Full Stack Engineer',
+              createdAt: 'May 31, 2026',
+              data: {
+                personalInfo: {
+                  name: 'Zaid Al-Sayegh',
+                  email: 'zaid@engineering.io',
+                  phone: '555-019-2048'
+                },
+                summary: 'Metrics-driven Senior Full Stack Engineer with 6+ years of expertise designing and building high-throughput cloud infrastructure and reactive user interfaces. Focused on performance optimization and engineering excellence.',
+                skills: ['React/Next.js', 'TypeScript', 'Node.js', 'Go', 'AWS (Fargate/RDS)', 'PostgreSQL', 'Docker'],
+                projects: [
+                  {
+                    name: 'Hyper-Scale SaaS Infrastructure',
+                    techStack: ['Next.js', 'Go', 'AWS', 'Docker'],
+                    bullets: [
+                      'Re-architected monolithic API endpoints into decoupled microservices, scaling user throughput by 250% while reducing latency from 180ms to 45ms.',
+                      'Engineered an automated serverless media transcoding pipeline serving 120k active assets, saving 35% in monthly compute overhead.',
+                      'Implemented strict database caching layers via Redis, reducing primary Postgres query loads by 65%.'
+                    ]
+                  },
+                  {
+                    name: 'Collaborative Real-time Canvas App',
+                    techStack: ['React', 'TypeScript', 'WebSockets', 'TailwindCSS'],
+                    bullets: [
+                      'Built a highly dynamic real-time collaborative workspace interface, driving 45k new user registrations within 60 days of deployment.',
+                      'Optimized canvas state synchronization protocols, achieving low-latency multi-client rendering in under 15ms.'
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              id: 'mock_2',
+              name: 'Jane Doe',
+              role: 'Lead Product Designer',
+              createdAt: 'May 25, 2026',
+              data: {
+                personalInfo: {
+                  name: 'Jane Doe',
+                  email: 'jane@designworks.co',
+                  phone: '555-012-3456'
+                },
+                summary: 'Lead Product Designer specialized in complex design systems and responsive user journeys. Committed to combining premium aesthetics with rigorous accessibility standards.',
+                skills: ['Figma', 'UI/UX Design', 'Design Systems', 'HTML/CSS', 'Prototyping', 'User Research'],
+                projects: [
+                  {
+                    name: 'Global Enterprise Design System',
+                    techStack: ['Figma', 'Tokens Studio', 'React'],
+                    bullets: [
+                      'Spearheaded the unified UI design token library across 4 product verticals, cutting engineering handoff duration by 50%.',
+                      'Audited and overhauled components to achieve full WCAG 2.1 AA compliance across core transaction pages.'
+                    ]
+                  }
+                ]
+              }
+            }
+          ];
+          localStorage.setItem('user_resumes', JSON.stringify(mockResumes));
+          setResumes(mockResumes);
+          setIsCloudSynced(false);
+        }
+      } catch (e) {
+        console.error("Local storage access error", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadResumes();
+  }, [user]);
+
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this resume?")) {
       const updated = resumes.filter(r => r.id !== id);
       setResumes(updated);
       localStorage.setItem('user_resumes', JSON.stringify(updated));
+
+      // Remove from Supabase Database if authenticated
+      if (user && !id.startsWith('mock_')) {
+        try {
+          const { error } = await supabase
+            .from('resumes')
+            .delete()
+            .eq('id', id);
+
+          if (error) {
+            console.error("Supabase Database deletion error:", error);
+          } else {
+            console.log("☁️ Successfully deleted resume from Supabase cloud!");
+          }
+        } catch (e) {
+          console.error("Supabase request failed", e);
+        }
+      }
     }
   };
 
   const copyShareLink = (resume: SavedResume) => {
     try {
-      const base64Data = btoa(encodeURIComponent(JSON.stringify(resume.data)));
-      const link = `${window.location.origin}/r/share?data=${base64Data}`;
+      // If cloud synced, use the UUID slug. Else, fallback to base64 encoding.
+      const isMock = resume.id.startsWith('mock_');
+      const link = user && isCloudSynced && !isMock
+        ? `${window.location.origin}/r/${resume.id}`
+        : `${window.location.origin}/r/share?data=${btoa(encodeURIComponent(JSON.stringify(resume.data)))}`;
+
       navigator.clipboard.writeText(link);
       setCopiedId(resume.id);
       setTimeout(() => setCopiedId(null), 2000);
@@ -171,13 +235,24 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <Link
-          href="/app"
-          className="flex items-center gap-2 px-6 py-2.5 bg-[#39FF14] text-black font-mono font-bold text-sm uppercase border-bold hover:scale-110 active:scale-95 transition-all shadow-hard-black"
-        >
-          <Plus size={16} />
-          <span>New Resume</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          {user && (
+            <button
+              onClick={signOut}
+              className="flex items-center gap-1.5 px-4 py-2.5 border-bold bg-white text-black font-mono font-bold text-sm uppercase hover:bg-[#FF6B35] hover:text-white transition-all shadow-hard-black active:scale-95"
+            >
+              <LogOut size={14} />
+              <span>Sign Out</span>
+            </button>
+          )}
+          <Link
+            href="/app"
+            className="flex items-center gap-2 px-6 py-2.5 bg-[#39FF14] text-black font-mono font-bold text-sm uppercase border-bold hover:scale-110 active:scale-95 transition-all shadow-hard-black"
+          >
+            <Plus size={16} />
+            <span>New Resume</span>
+          </Link>
+        </div>
       </header>
 
       {/* Main Container */}
@@ -186,18 +261,39 @@ export default function DashboardPage() {
         {/* Intro Banner */}
         <div className="bg-[#FF006E] text-white p-6 border-bold shadow-hard-black rounded-lg mb-12 -rotate-1 flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
-            <h2 className="text-xl font-extrabold uppercase">Stateless Resume Vault</h2>
+            <h2 className="text-xl font-extrabold uppercase">
+              {user ? '☁️ Cloud Database Enabled' : 'Stateless Resume Vault'}
+            </h2>
             <p className="text-xs font-mono font-bold text-[#39FF14] uppercase mt-1">
-              Your resumes are stored locally on your device. Clearing your browser storage deletes this list.
+              {user 
+                ? `Welcome back, ${user.email}! Resumes are synchronized securely to the Supabase Cloud.`
+                : 'Your resumes are stored locally on your device. Sign in to sync them to the cloud!'
+              }
             </p>
           </div>
-          <div className="bg-white border-bold px-3 py-1 text-black font-mono font-extrabold text-xs uppercase shadow-hard-black rotate-2">
-            🔒 Client-Side Only
+          
+          <div className="bg-white border-bold px-3 py-1 text-black font-mono font-extrabold text-xs uppercase shadow-hard-black rotate-2 flex items-center gap-1.5">
+            {user && isCloudSynced ? (
+              <>
+                <CheckCircle size={13} className="text-[#39FF14]" />
+                <span>Cloud Synced</span>
+              </>
+            ) : (
+              <>
+                <CloudLightning size={13} className="text-[#FF6B35]" />
+                <span>Client Vault</span>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Resumes Grid */}
-        {resumes.length === 0 ? (
+        {/* Loading Spinner */}
+        {loading ? (
+          <div className="text-center py-20 font-mono font-extrabold uppercase text-slate-500">
+            <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-[#0096FF]" />
+            <span>Loading Vault...</span>
+          </div>
+        ) : resumes.length === 0 ? (
           <div className="text-center py-20 bg-[#FAFAFA] border-bold shadow-hard-black max-w-xl mx-auto rounded-lg">
             <Eye size={48} className="mx-auto mb-4 text-[#FF006E]" />
             <h3 className="text-lg font-extrabold uppercase mb-2">No resumes found</h3>
@@ -216,7 +312,10 @@ export default function DashboardPage() {
             {resumes.map((resume, index) => {
               const accent = getAccentColor(index);
               const shadowClass = getShadowHardClass(index);
-              const shareLink = `/r/share?data=${btoa(encodeURIComponent(JSON.stringify(resume.data)))}`;
+              const isMock = resume.id.startsWith('mock_');
+              const shareLink = user && isCloudSynced && !isMock
+                ? `/r/${resume.id}`
+                : `/r/share?data=${btoa(encodeURIComponent(JSON.stringify(resume.data)))}`;
 
               return (
                 <motion.div
@@ -298,7 +397,7 @@ export default function DashboardPage() {
       <footer className="w-full py-6 border-t-4 border-black bg-white px-6 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <span className="text-xs font-mono font-extrabold uppercase text-slate-500">
-            © 2026 ZERO-STATE RESUME BUILDER. CLIENT VAULT.
+            © 2026 ZERO-STATE RESUME BUILDER. CLOUD STORAGE INTEGRATION.
           </span>
           <div className="flex gap-4">
             <Link href="/" className="text-xs font-mono font-extrabold uppercase hover:underline">Landing Page</Link>

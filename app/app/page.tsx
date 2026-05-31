@@ -6,6 +6,7 @@ import { ResumePDF } from '../../components/ResumePDF';
 import { ResumePreview } from '../../components/ResumePreview';
 import { useAuth } from '@/lib/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { 
   Send, 
@@ -88,20 +89,41 @@ export default function AppBuilder() {
     }
   }, [messages, resumeData]);
 
-  const saveResumeToLocal = (data: ResumeData) => {
+  const saveResumeToLocal = async (data: ResumeData) => {
     if (typeof window === 'undefined') return;
     try {
+      const resumeId = `resume_${Date.now()}`;
+      const title = data.personalInfo?.name ? `${data.personalInfo.name} - Resume` : "Product Engineer";
+
+      // 1. Save locally to localStorage
       const savedResumesStr = localStorage.getItem('user_resumes') || '[]';
       const savedResumes = JSON.parse(savedResumesStr);
       const newResume = {
-        id: `resume_${Date.now()}`,
+        id: resumeId,
         name: data.personalInfo?.name || "Untitled Resume",
-        role: data.personalInfo?.name ? `${data.personalInfo.name} - Resume` : "Product Engineer",
+        role: title,
         data: data,
         createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       };
       savedResumes.unshift(newResume);
       localStorage.setItem('user_resumes', JSON.stringify(savedResumes));
+
+      // 2. Synchronize with Supabase cloud database if user is authenticated
+      if (user) {
+        const { error } = await supabase.from('resumes').insert({
+          user_id: user.id,
+          title: title,
+          resume_data: data,
+          template: 'classic',
+          is_public: true
+        });
+
+        if (error) {
+          console.error("Supabase Database synchronization error:", error);
+        } else {
+          console.log("☁️ Successfully backed up resume to Supabase cloud database!");
+        }
+      }
     } catch (e) {
       console.error("Local storage save error", e);
     }
@@ -133,7 +155,7 @@ export default function AppBuilder() {
         if (isJsonResponse(text)) {
           const parsed = repairAndParseJSON(text);
           if (parsed && parsed.personalInfo?.name) {
-            saveResumeToLocal(parsed);
+            await saveResumeToLocal(parsed);
             setResumeData(parsed);
             setMessages(prev => [
               ...prev,

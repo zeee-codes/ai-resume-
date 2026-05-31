@@ -14,6 +14,7 @@ import {
 import { ResumeData } from '../../../types';
 import { ResumePreview } from '../../../components/ResumePreview';
 import { ResumePDF } from '../../../components/ResumePDF';
+import { supabase } from '@/lib/supabase';
 
 // Dynamically load PDFDownloadLink to prevent Next.js SSR crashes
 import dynamic from 'next/dynamic';
@@ -30,39 +31,66 @@ function ResumeShareViewer() {
   const [data, setData] = useState<ResumeData | null>(null);
   const [accent, setAccent] = useState<AccentChoice>('blue');
   const [isClient, setIsClient] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setIsClient(true);
     
-    // 1. Check for data query param (Base64 encoded JSON payload)
-    const rawData = searchParams.get('data');
-    if (rawData) {
-      try {
-        const decoded = JSON.parse(decodeURIComponent(atob(rawData))) as ResumeData;
-        setData(decoded);
-        return;
-      } catch (err) {
-        console.error("Base64 decode failed:", err);
+    const loadResumeData = async () => {
+      setLoading(true);
+      
+      // 1. Check for data query param (Base64 encoded JSON payload)
+      const rawData = searchParams.get('data');
+      if (rawData) {
+        try {
+          const decoded = JSON.parse(decodeURIComponent(atob(rawData))) as ResumeData;
+          setData(decoded);
+          setLoading(false);
+          return;
+        } catch (err) {
+          console.error("Base64 decode failed:", err);
+        }
       }
-    }
 
-    // 2. Check local storage if slug matches a local resume
-    const slug = params.slug as string;
-    if (slug && slug !== 'share') {
-      try {
-        const local = localStorage.getItem('user_resumes');
-        if (local) {
-          const resumes = JSON.parse(local);
-          const matched = resumes.find((r: any) => r.id === slug);
-          if (matched) {
-            setData(matched.data);
+      // 2. Check if the slug is a Supabase resume UUID
+      const slug = params.slug as string;
+      if (slug && slug !== 'share') {
+        try {
+          const { data: row, error } = await supabase
+            .from('resumes')
+            .select('*')
+            .eq('id', slug)
+            .single();
+
+          if (row && !error) {
+            setData(row.resume_data);
+            setLoading(false);
             return;
           }
+        } catch (e) {
+          console.error("Supabase Database remote lookup failed", e);
         }
-      } catch (e) {
-        console.error("Local storage lookup failed", e);
+
+        // 3. Check local storage if slug matches a local resume
+        try {
+          const local = localStorage.getItem('user_resumes');
+          if (local) {
+            const resumes = JSON.parse(local);
+            const matched = resumes.find((r: any) => r.id === slug);
+            if (matched) {
+              setData(matched.data);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error("Local storage lookup failed", e);
+        }
       }
-    }
+      setLoading(false);
+    };
+
+    loadResumeData();
   }, [params.slug, searchParams]);
 
   const accentColors = {
@@ -88,6 +116,16 @@ function ResumeShareViewer() {
       default: return 'text-black';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white text-black flex flex-col justify-center items-center p-6 text-center font-mono font-extrabold uppercase text-sm">
+        <div className="p-4 bg-[#6A00FF] border-bold text-white shadow-hard-black rotate-1">
+          ☁️ Syncing Cloud Resume Data...
+        </div>
+      </div>
+    );
+  }
 
   if (!data) {
     return (
