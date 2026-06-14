@@ -19,8 +19,6 @@ export const metadata: Metadata = {
   description: "Generate a perfectly formatted, professional ATS-compliant PDF resume instantly using our interactive AI Recruiter. No sign-ups, no data storage.",
 };
 
-import { AuthProvider } from '@/lib/AuthContext';
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,9 +30,7 @@ export default function RootLayout({
       className={`${outfit.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-white text-black flex flex-col font-sans">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        {children}
       </body>
     </html>
   );

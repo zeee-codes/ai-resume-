@@ -4,9 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Message, ResumeData } from '../../types';
 import { ResumePDF } from '../../components/ResumePDF';
 import { ResumePreview } from '../../components/ResumePreview';
-import { useAuth } from '@/lib/AuthContext';
-import { AuthModal } from '@/components/AuthModal';
-import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { 
   Send, 
@@ -30,9 +27,6 @@ const PDFDownloadLink = dynamic(
 );
 
 export default function AppBuilder() {
-  const { user, signOut } = useAuth();
-  const [showAuthModal, setShowAuthModal] = useState(!user);
-
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'model', 
@@ -52,15 +46,6 @@ export default function AppBuilder() {
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  // Sync auth modal visibility with user session
-  useEffect(() => {
-    if (user) {
-      setShowAuthModal(false);
-    } else {
-      setShowAuthModal(true);
-    }
-  }, [user]);
 
   // Prevent accidental data loss on refresh
   useEffect(() => {
@@ -273,41 +258,6 @@ export default function AppBuilder() {
     }
   };
 
-  // Auth gate checks
-  if (!user) {
-    return (
-      <div className="w-full h-screen flex flex-col items-center justify-center bg-white p-6 relative overflow-hidden">
-        {/* Colorful Neobrutalist Geometry Elements */}
-        <div className="absolute top-10 left-10 w-24 h-24 bg-[#FF6B35] border-bold rotate-6 shadow-hard-black" />
-        <div className="absolute bottom-20 right-10 w-32 h-32 bg-[#0096FF] border-bold -rotate-12 shadow-hard-black" />
-        
-        <div className="text-center space-y-6 relative z-10 bg-white border-bold-3 p-8 shadow-hard-black rounded-lg max-w-md w-full">
-          <div className="p-3 bg-[#FF006E] text-white border-bold inline-block rotate-3 shadow-hard-black mb-2">
-            <Sparkles size={32} />
-          </div>
-          
-          <h1 className="text-3xl font-extrabold uppercase leading-tight text-black font-heading">
-            AUTHENTICATION <br />
-            <span className="bg-[#39FF14] text-black px-2 border-bold inline-block mt-2 -rotate-1">REQUIRED</span>
-          </h1>
-          
-          <p className="text-xs font-mono font-extrabold uppercase text-slate-500 max-w-xs mx-auto leading-relaxed">
-            You must be signed in to access the Zero-State AI Recruiter and build your resume.
-          </p>
-          
-          <button
-            onClick={() => setShowAuthModal(true)}
-            className="w-full px-8 py-4 bg-[#FF006E] text-white font-mono font-extrabold text-sm uppercase border-bold shadow-hard-black hover:scale-105 active:scale-95 transition-all"
-          >
-            🔑 SIGN IN OR REGISTER
-          </button>
-        </div>
-        
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col flex-1 h-screen overflow-hidden bg-white text-black relative">
       {/* Bold Redesigned Header */}
@@ -335,12 +285,6 @@ export default function AppBuilder() {
             <LayoutDashboard size={14} />
             <span>Dashboard</span>
           </Link>
-          <button
-            onClick={signOut}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-mono font-extrabold uppercase text-white bg-[#0096FF] border-bold hover:scale-105 active:scale-95 transition-all shadow-hard-black"
-          >
-            <span>Sign Out</span>
-          </button>
           <button
             onClick={handleReset}
             id="reset-session-btn"

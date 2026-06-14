@@ -1,9 +1,7 @@
-import Replicate from 'replicate';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN || '',
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 const SYSTEM_INSTRUCTION = `You are an expert ATS Resume Recruiter AI. Your ONLY job is to interview users and extract resume data.
 
@@ -74,60 +72,40 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!process.env.REPLICATE_API_TOKEN) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'REPLICATE_API_TOKEN is not configured in .env.local' },
+        { error: 'GEMINI_API_KEY is not configured in .env.local' },
         { status: 500 }
       );
     }
 
-    // Format the conversation history for Llama 2 [INST] format
-    let prompt = "";
-    const systemSegment = `<<SYS>>\n${SYSTEM_INSTRUCTION}\n<</SYS>>\n\n`;
-    let isFirstUser = true;
+    // Format messages for Gemini
+    const contents = messages.map((m: any) => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.content }],
+    }));
 
-    for (const msg of messages) {
-      if (msg.role === 'user') {
-        if (isFirstUser) {
-          prompt += `[INST] ${systemSegment}${msg.content} [/INST]`;
-          isFirstUser = false;
-        } else {
-          prompt += ` [INST] ${msg.content} [/INST]`;
-        }
-      } else {
-        prompt += ` ${msg.content}`;
-      }
-    }
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    // Run the Llama 3 70b instruct model on Replicate
-    const output = await replicate.run(
-      "meta/meta-llama-3-70b-instruct",
-      {
-        input: {
-          prompt: prompt,
-          system_prompt: SYSTEM_INSTRUCTION,
-          temperature: 0.3,
-          max_new_tokens: 2048
-        }
-      }
-    );
+    const response = await model.generateContent({
+      contents,
+      systemInstruction: SYSTEM_INSTRUCTION,
+      generationConfig: {
+        temperature: 0.3, // Lower temp for stricter JSON
+        maxOutputTokens: 2048,
+      },
+    });
 
-    let text = "";
-    if (Array.isArray(output)) {
-      text = output.join("");
-    } else if (typeof output === 'string') {
-      text = output;
-    } else {
-      text = String(output || '');
-    }
+    const text = response.response.text() || '';
 
     return NextResponse.json({ text: text.trim() });
   } catch (error: any) {
-    console.error('Replicate API Error:', error);
+    console.error('Gemini API Error:', error);
     return NextResponse.json(
       { error: `Failed to generate response: ${error?.message || error || 'Unknown error'}` },
       { status: 500 }
     );
   }
 }
+
 

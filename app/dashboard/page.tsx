@@ -11,14 +11,9 @@ import {
   Sparkles,
   ArrowLeft,
   LayoutDashboard,
-  CloudLightning,
-  CheckCircle,
-  LogOut,
   RefreshCw
 } from 'lucide-react';
 import { ResumeData } from '../../types';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/AuthContext';
 
 interface SavedResume {
   id: string;
@@ -29,49 +24,21 @@ interface SavedResume {
 }
 
 export default function DashboardPage() {
-  const { user, signOut } = useAuth();
   const [resumes, setResumes] = useState<SavedResume[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Load resumes from Supabase or localStorage fallback
+  // Load resumes from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const loadResumes = async () => {
       setLoading(true);
       try {
-        // 1. Try to load from Supabase database if authenticated
-        if (user) {
-          const { data: cloudResumes, error } = await supabase
-            .from('resumes')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
-
-          if (cloudResumes && !error && cloudResumes.length > 0) {
-            const mapped: SavedResume[] = cloudResumes.map((row: any) => ({
-              id: row.id,
-              name: row.resume_data.personalInfo?.name || row.title,
-              role: row.title,
-              createdAt: new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-              data: row.resume_data
-            }));
-            setResumes(mapped);
-            setIsCloudSynced(true);
-            // Sync to local cache
-            localStorage.setItem('user_resumes', JSON.stringify(mapped));
-            setLoading(false);
-            return;
-          }
-        }
-
-        // 2. Local fallback if offline/no cloud records
+        // 1. Load from localStorage
         const stored = localStorage.getItem('user_resumes');
         if (stored) {
           setResumes(JSON.parse(stored));
-          setIsCloudSynced(false);
         } else {
           // Preload mock resumes to populate the interface immediately
           const mockResumes: SavedResume[] = [
@@ -137,7 +104,6 @@ export default function DashboardPage() {
           ];
           localStorage.setItem('user_resumes', JSON.stringify(mockResumes));
           setResumes(mockResumes);
-          setIsCloudSynced(false);
         }
       } catch (e) {
         console.error("Local storage access error", e);
@@ -147,41 +113,20 @@ export default function DashboardPage() {
     };
 
     loadResumes();
-  }, [user]);
+  }, []);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this resume?")) {
       const updated = resumes.filter(r => r.id !== id);
       setResumes(updated);
       localStorage.setItem('user_resumes', JSON.stringify(updated));
-
-      // Remove from Supabase Database if authenticated
-      if (user && !id.startsWith('mock_')) {
-        try {
-          const { error } = await supabase
-            .from('resumes')
-            .delete()
-            .eq('id', id);
-
-          if (error) {
-            console.error("Supabase Database deletion error:", error);
-          } else {
-            console.log("☁️ Successfully deleted resume from Supabase cloud!");
-          }
-        } catch (e) {
-          console.error("Supabase request failed", e);
-        }
-      }
     }
   };
 
   const copyShareLink = (resume: SavedResume) => {
     try {
-      // If cloud synced, use the UUID slug. Else, fallback to base64 encoding.
-      const isMock = resume.id.startsWith('mock_');
-      const link = user && isCloudSynced && !isMock
-        ? `${window.location.origin}/r/${resume.id}`
-        : `${window.location.origin}/r/share?data=${btoa(encodeURIComponent(JSON.stringify(resume.data)))}`;
+      // Use base64 encoding for share links
+      const link = `${window.location.origin}/r/share?data=${btoa(encodeURIComponent(JSON.stringify(resume.data)))}`;
 
       navigator.clipboard.writeText(link);
       setCopiedId(resume.id);
@@ -236,15 +181,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {user && (
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1.5 px-4 py-2.5 border-bold bg-white text-black font-mono font-bold text-sm uppercase hover:bg-[#FF6B35] hover:text-white transition-all shadow-hard-black active:scale-95"
-            >
-              <LogOut size={14} />
-              <span>Sign Out</span>
-            </button>
-          )}
           <Link
             href="/app"
             className="flex items-center gap-2 px-6 py-2.5 bg-[#39FF14] text-black font-mono font-bold text-sm uppercase border-bold hover:scale-110 active:scale-95 transition-all shadow-hard-black"
@@ -262,28 +198,15 @@ export default function DashboardPage() {
         <div className="bg-[#FF006E] text-white p-6 border-bold shadow-hard-black rounded-lg mb-12 -rotate-1 flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h2 className="text-xl font-extrabold uppercase">
-              {user ? '☁️ Cloud Database Enabled' : 'Stateless Resume Vault'}
+              Resume Vault
             </h2>
             <p className="text-xs font-mono font-bold text-[#39FF14] uppercase mt-1">
-              {user 
-                ? `Welcome back, ${user.email}! Resumes are synchronized securely to the Supabase Cloud.`
-                : 'Your resumes are stored locally on your device. Sign in to sync them to the cloud!'
-              }
+              Your resumes are stored locally on your device.
             </p>
           </div>
           
           <div className="bg-white border-bold px-3 py-1 text-black font-mono font-extrabold text-xs uppercase shadow-hard-black rotate-2 flex items-center gap-1.5">
-            {user && isCloudSynced ? (
-              <>
-                <CheckCircle size={13} className="text-[#39FF14]" />
-                <span>Cloud Synced</span>
-              </>
-            ) : (
-              <>
-                <CloudLightning size={13} className="text-[#FF6B35]" />
-                <span>Client Vault</span>
-              </>
-            )}
+            <span>Client Vault</span>
           </div>
         </div>
 
@@ -322,10 +245,7 @@ export default function DashboardPage() {
                   key={resume.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1, type: "spring", stiffness: 200, damping: 20 }}
-                  className={`bg-white border-bold shadow-hard-black rounded-lg overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-2 ${shadowClass}`}
-                  style={{ borderTop: `6px solid ${accent}` }}
-                >
+                  trshareLink =
                   {/* Card Body */}
                   <div className="p-6 flex-1 flex flex-col justify-between">
                     <div>

@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -14,7 +16,6 @@ import {
 import { ResumeData } from '../../../types';
 import { ResumePreview } from '../../../components/ResumePreview';
 import { ResumePDF } from '../../../components/ResumePDF';
-import { supabase } from '@/lib/supabase';
 
 // Dynamically load PDFDownloadLink to prevent Next.js SSR crashes
 import dynamic from 'next/dynamic';
@@ -52,26 +53,9 @@ function ResumeShareViewer() {
         }
       }
 
-      // 2. Check if the slug is a Supabase resume UUID
+      // 2. Check local storage if slug matches a local resume
       const slug = params.slug as string;
       if (slug && slug !== 'share') {
-        try {
-          const { data: row, error } = await supabase
-            .from('resumes')
-            .select('*')
-            .eq('id', slug)
-            .single();
-
-          if (row && !error) {
-            setData(row.resume_data);
-            setLoading(false);
-            return;
-          }
-        } catch (e) {
-          console.error("Supabase Database remote lookup failed", e);
-        }
-
-        // 3. Check local storage if slug matches a local resume
         try {
           const local = localStorage.getItem('user_resumes');
           if (local) {
